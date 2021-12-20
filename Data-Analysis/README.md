@@ -11,15 +11,15 @@ file with the same name as the rhd filename. It generates one .mat file per whis
 
 	Outputs:
 	* NeuralData structure that contains:
-		o 	Filename
-		o 	Channel Impedance
-		o 	Whisker ID
-		o 	Channel number
-		o 	LFP 
-		o 	Gamma
-		o 	Time
-		o 	Sampling rate
-		o 	Pulse signal
+		* 	Filename
+		* 	Channel Impedance
+		* 	Whisker ID
+		* 	Channel number
+		* 	LFP 
+		* 	Gamma
+		* 	Time
+		* 	Sampling rate
+		* 	Pulse signal
 
 	It is optimized to run all files in one folder. Once it had been run once, it does not need to be run again.
 
@@ -35,15 +35,15 @@ data needed for analysis.
 	* CAR_Flag, indicates if common average referencing by subtracting mean of all channels will be performed (1) or not (0).
 	* Num_ch_RV, is a vector with the number of channels that will be used to generate the directional curve and resultant vector
 	* Num_ch is the number of channels that will be used for the analysis. This is a predetermined DISC electrode configuration. Values 		accepted:
-		o	128 (16 rows x 8 columns)
-		o	64 (16 x 4)
-		o	88 (11 x 8)
-		o	44 (11 x 4)
-		o	24 (3 x 8)
-		o	12 (3 x 4)
-		o	8 (1 x 8)
-		o	4 (1 x 4)
-		o	1 (1 x 1, This is the best channel with highest amplitude).
+		*	128 (16 rows x 8 columns)
+		*	64 (16 x 4)
+		*	88 (11 x 8)
+		*	44 (11 x 4)
+		*	24 (3 x 8)
+		*	12 (3 x 4)
+		*	8 (1 x 8)
+		*	4 (1 x 4)
+		*	1 (1 x 1, This is the best channel with highest amplitude).
 
 	Tetrode device only accepts 4 and 1 electrodes
 	
@@ -59,8 +59,8 @@ data needed for analysis.
 	* Percentage_data_testing is the percentage of data that will be used for testing. 100-percentage_data_testing is the percentage 	that will be used for triaing.
 	* Target_variance is the percentage of the variance that wants to be explained by the number of principal components chosen. 		Therefore, the Func_LDA will chose as many principal components as it takes to get to the target_variance percentage
 	* If plotting RV or polar plots:
-		o Type, LFP or Gamma, this should match the value given by GammaFlag
-		o Plot_type 
+		* Type, LFP or Gamma, this should match the value given by GammaFlag
+		* Plot_type 
 	Outputs:
 	* Model_summary, structure with the accuracy, snr, rms, amplitude for each whisker and device. You get 
 	10 repetitions per whisker, as this is equivalent to the number of crossvalidation used in the model
@@ -68,19 +68,19 @@ data needed for analysis.
 	
 	Things done in this script:
 	* For all channels:
-		o Separate data into trials, and for each trial calculate: amplitude, SNR and RMS noise and signal is implemented but 			commented. Uncomemnt if needed
-		o Average waveform of all trials, and calculate the amplitude, and SNR
+		* Separate data into trials, and for each trial calculate: amplitude, SNR and RMS noise and signal is implemented but 			commented. Uncomemnt if needed
+		* Average waveform of all trials, and calculate the amplitude, and SNR
 	* For channels in channels_interest.RV:
-		o Calculate a directional curve using the average waveform
-		o Calculate a directional curve for each trial
+		* Calculate a directional curve using the average waveform
+		* Calculate a directional curve for each trial
 	* Generate feature matrix for each trial by saving gamma snippets (voltage vs time) for all channels in 
 	channels_interest.model. The neural activity voltage is acquired every .5 ms and it goes from 0 to 
 	+windowduration. The directional curve for each trial can be added to this feature matrix. The resultant vector of the addition of 	   individual directional curves is sometimes also added in lieu of the directional curve
 	* If model_flag is on, it will call the func_model_all_closest_furthest_whiskers_v2 to:
-		o	Divide the data into training and testing data
-		o	Do PCA for dimensionality reduction
-		o	Run LDA using 5 and 9 classes
-		o	Calculates model accuracy
+		*	Divide the data into training and testing data
+		*	Do PCA for dimensionality reduction
+		*	Run LDA using 5 and 9 classes
+		*	Calculates model accuracy
 	Channels being analyzed were previously chosen (see DISC_KeyFacts). If it needs to be changed, modify the channels_interest 	structure
 
 3. Func_GetSnippets separates waveform into individual trial snippets by finding the pulse signal start and looking at –windowduration to +windowduration data points. Trial data will be stored in a matrix with each row being a trial, and each column the voltage value at a specific point in time
