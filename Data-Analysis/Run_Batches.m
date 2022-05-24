@@ -5,15 +5,21 @@ trial_num=450;
 WindowDuration=.100; % 100 ms
 model_flag=1;
 CAR_Flag=0; % 1 if we want to do CAR in the LFP and gamma data
-
+LFPbandflag=1; % Freq band used for analysing (0) LFP, (1) gamma, (2) beta,
+% (3) High gamma, (4) low Gamma
+                
 % dates={'1-11-21', '1-13-21', '1-15-21', '1-27-21', '1-28-21', '10-31-20', '11-01-20','11-03-20'}; % Recording date
 dates={'1-11-21', '1-13-21', '1-15-21', '1-27-21', '1-28-21', '8-27-21', '9-7-21', '9-29-21','10-05-21'}; % Recording date
 % dates={'9-9-21'}
 % dates={'03-02-21','11-12-20'};
+% dates={'03-02-21'};
+% dates={'8-27-21','9-29-21','10-05-21'};
+% dates={'9-29-21'};
+
 device='DISC'; % Device type
 num_ch_RV=4;
-num_ch=1; % 128, 64, 88, 44, 24, 12, 8, 4, 1
-
+num_ch=44; % 128, 64, 88, 44, 24, 12, 8, 4, 1
+% % 
 % device='Tetrode';
 % num_ch_RV=4;
 % num_ch=4; % 128, 64, 88, 44, 24, 12, 8, 4, 1
@@ -21,7 +27,7 @@ num_ch=1; % 128, 64, 88, 44, 24, 12, 8, 4, 1
 %% For running just all dates with a set number of trials and window duration
 for i=1:length(dates)
     date=char(dates(i));
-    [model_summary_one_file, data_summary_one_file, number_trials]=Func_Data_Preprocessing_v14(date, device, WindowDuration, trial_num, model_flag, CAR_Flag,num_ch_RV, num_ch);
+    [model_summary_one_file, data_summary_one_file, number_trials]=Func_Data_Preprocessing_v15(date, device, WindowDuration, trial_num, model_flag, CAR_Flag,num_ch_RV, num_ch,LFPbandflag);
     % Concatanate model_summary_one and model_summary structure
     for row_num=1:length(model_summary_one_file)
         model_summary_one_file(row_num).WindowStart=0;
@@ -29,6 +35,7 @@ for i=1:length(dates)
         model_summary_one_file(row_num).WindowEnd=WindowDuration;
         model_summary_one_file(row_num).Number_Trials=number_trials;
         model_summary_one_file(row_num).CAR_Flag=CAR_Flag;
+        model_summary_one_file(row_num).LFPBand_Flag=LFPbandflag;
 
 
     end
@@ -60,7 +67,7 @@ end
 %      for trial_num=30:30:450
 % %          trial_num=90;
 % % %         for WindowDuration=.01250:.0125:.200
-%         [model_summary_one_file, data_summary_one_file, number_trials]=Func_Data_Preprocessing_v14(date, device, WindowDuration, trial_num, model_flag, CAR_Flag,num_ch_RV, num_ch);
+%         [model_summary_one_file, data_summary_one_file, number_trials]=Func_Data_Preprocessing_v15(date, device, WindowDuration, trial_num, model_flag, CAR_Flag,num_ch_RV, num_ch);
 %         % Concatanate model_summary_one and model_summary structure
 %         for row_num=1:length(model_summary_one_file)
 %             model_summary_one_file(row_num).WindowStart=0;
@@ -89,7 +96,7 @@ end
 %             data_summary=[data_summary, data_summary_one_file];
 %         else
 %             data_summary=data_summary_one_file;
-%         end
+%         endclosccc
 %         
 %      end
 % end
@@ -120,13 +127,15 @@ end
 if model_flag==1
     
     temp=struct2table(model_summary);
-    writetable(temp,'C:\Users\Public\Programming\Matlab\Data\ModelandDataSummaries_ImplementedCVPCA_NoDenoising_NoCAR_1200umDepth.csv');
-    
+%     writetable(temp,'C:\Users\Public\Programming\Matlab\Data\ModelandDataSummaries_ImplementedCVPCA_NoDenoising_LowGammaBand_9Whiskers.csv');
+    writetable(temp,'C:\Users\Public\Programming\Matlab\Data\ModelandDataSummaries_ImplementedCVPCA_NoDenoising_GammaBand_9Whiskers_1fSlope.csv');
+
 end
+% end
 % temp=data_summary;
 % temp = rmfield(temp, {'Amplitude_Gamma_Trials', 'Amplitude_LFP_Trials', 'SNR_Gamma_Trials', 'SNR_LFP_Trials',...
-%      'DC_Gamma', 'DC_LFP', 'DC_Gamma_Smoothed', 'DC_LFP_Smoothed', 'DC_offset', 'LFP_Waveforms', 'Gamma_Waveforms', 'Time_Trials'});
-% temp=struct2table(temp);writetable(temp,'C:\Users\Public\Programming\Matlab\Data\Data_Summary_NoCAR_DISC_1200umDepth.csv');
+%      'DC_Gamma', 'DC_LFP', 'DC_Gamma_Smoothed', 'DC_LFP_Smoothed', 'DC_offset', 'LFP_Waveform', 'Gamma_Waveform', 'Time_Trials'});
+% temp=struct2table(temp);writetable(temp,'C:\Users\Public\Programming\Matlab\Data\Data_Summary_FullLFPBand_NoCAR_10Whiskers.csv');
 
 % if model_flag==1
 % 

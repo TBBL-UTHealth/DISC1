@@ -1,4 +1,4 @@
-function [model_summary, data_summary, number_trials]= Func_Data_Preprocessing_v14(date, device, windowduration, target_trial_num, model_flag,CAR_Flag, num_ch_RV,num_ch)
+function [model_summary, data_summary, number_trials]= Func_Data_Preprocessing_v15(date, device, windowduration, target_trial_num, model_flag,CAR_Flag, num_ch_RV,num_ch,LFPbandflag)
 %Default channel number is 11x4
 % Based on Data_Preprocessing_v9 for DISC, Macro and Macros
 %Data_Preprocessing Loads .mat files in a specific path and separates it in trials with the window
@@ -41,21 +41,23 @@ function [model_summary, data_summary, number_trials]= Func_Data_Preprocessing_v
 % added to the data_summary. Average waveform for channel with max
 % amplitude saved. Mean amplitude of -100 to 0 on the column where the best
 % channel is also saved
-
+% -v15 replaces gammaflag with an LFPbandflag anad it's an input of the function, so now you can also do beta
+% analysis. Adds CSD as a feature. 
 
 % figure;
 %default values
 binsize=22.5; % Degree difference between interpolated angles for DC
-gammaflag=1; % If 0, we're analyzing LFP data. If 1, it's gamma
-saveflag=1; % If 0, confusion matrices not being saved
-plotflag=0; % If 0 we are not plotting RV/DC, if 1 we are plotting them
-MacroFlag=1; % If 0, the modeling and feature matrix for DISC macro are not created
+saveflag=0; % If 0, confusion matrices not being saved
+plotflag=1; % If 0 we are not plotting RV/DC, if 1 we are plotting them
+MacroFlag=0; % If 0, the modeling and feature matrix for DISC macro are not created
 keep_stdev=3; % Used to define the value of data that will be thrown out data
 target_variance=99;
 save_indvidual_DC=1; % if 1, it will save the directional curves in the data_summary 
 polarplotflag=0; % 0 it doesn't plot polar plots of the directional curve
 % CAR_Flag=1; % 1 if we want to do CAR in the LFP and gamma data
-
+featureflag=4; %Featureflag will indicate whether we will have wavefoms only (0),
+% wavefoms with DC(1), wavefoms with RV (2) or CSD gamma (3) in the
+% feature matrix, (4) 1/f slope
 
 plot_colors=[[0 0.4470 0.7410];[0.8500 0.3250 0.0980];[0.9290 0.6940 0.1250];[0.4940 0.1840 0.5560];...
     [0.4660 0.6740 0.1880]; [0.3010 0.7450 0.9330]; [0.6350 0.0780 0.1840];[1.0000 0.7109 0.7568];...
@@ -90,7 +92,7 @@ Features=struct();
 %peak_mag_dir=zeros(length(filelist),2);
 
     
-for file_num=1:(length(filelist)) %9
+for file_num=1:9%:(length(filelist)) %9
     load(filelist(file_num).name);
 
     color=plot_colors(file_num, :);
@@ -105,22 +107,29 @@ for file_num=1:(length(filelist)) %9
     LFP_Mat=[];
     for i=1:numel(channels_interest.model)
         position_struct=find([NeuralData.Channel_Number]==channels_interest.model(i));
-        if isempty(position_struct)==0        
-            temp=NeuralData(position_struct).LFP;
+        if isempty(position_struct)==0
+            if LFPbandflag == 1
+                temp=NeuralData(position_struct).LFP_Gamma;
+            else
+                temp=NeuralData(position_struct).LFP;
+            end
             LFP_Mat=cat(1,LFP_Mat,temp);
+            
         end
     end
     CAR_Average=mean(LFP_Mat,1, 'Omitnan');
 
     for ch_num=1:length(NeuralData)
         %%% LFP
+        pulse_signal=NeuralData(ch_num).Pulse_Signal;
+        Fsdown=NeuralData(ch_num).Sampling_Rate;
         LFP=NeuralData(ch_num).LFP;
+        Gamma=NeuralData(ch_num).LFP_Gamma;
+        
         if CAR_Flag==1
             LFP=LFP-CAR_Average; % CAR
         end
 
-        pulse_signal=NeuralData(ch_num).Pulse_Signal;
-        Fsdown=NeuralData(ch_num).Sampling_Rate;
         
 %         %% Removes 60 Hz noise
 %         d = designfilt('bandstopiir','FilterOrder',2, ...
@@ -144,10 +153,35 @@ for file_num=1:(length(filelist)) %9
 %         fvtool(d,'Fs',Fsdown);
 %         LFP = filtfilt(d,LFP);
 
-        [Snippet,time_snippet, TrialNumbers] = Func_GetSnippets_v2(LFP, pulse_signal, threshold,windowduration, Fsdown);
+        %%% Replaces LFP band with one of the bands indicated by
+        %%% LFPbandflag
+        switch LFPbandflag
+            case 2 % Beta
+                Fpass1 = 13;          % First Passband Frequency
+                Fpass2 = 30;         % Second Passband Frequency
+                [b,a] = butter(5,[Fpass1 Fpass2]./((Fsdown)/2),'bandpass');
+                LFP = filtfilt(b,a,LFP);
+            case 3 % High Gamma
+                Fpass1 = 62;          % First Passband Frequency
+                Fpass2 = 120;         % Second Passband Frequency
+                [b,a] = butter(5,[Fpass1 Fpass2]./((Fsdown)/2),'bandpass');
+                
+                LFP = filtfilt(b,a,Gamma);
+                
+            case 4 % Low Gamma
+                Fpass1 = 30;          % First Passband Frequency
+                Fpass2 = 59;         % Second Passband Frequency
+                [b,a] = butter(5,[Fpass1 Fpass2]./((Fsdown)/2),'bandpass');
+                
+                LFP = filtfilt(b,a,Gamma);
+
+
+        end
+
+        
+        [Snippet,~, ~] = Func_GetSnippets_v2(LFP, pulse_signal, threshold,windowduration, Fsdown);
 
         %%% GAMMA
-        Gamma=NeuralData(ch_num).LFP_Gamma;
 
         [Snippet_Gamma,time_snippet, TrialNumbers] = Func_GetSnippets_v2(Gamma, pulse_signal, threshold,windowduration, Fsdown);
 
@@ -194,11 +228,16 @@ for file_num=1:(length(filelist)) %9
         %%% the lowest through post stimulation 
         % This if only takes the cases where there is a negative inflexion,
         % takes infragranular 
-        if abs(min(Average_LFP(time_snippet>=0&time_snippet<=100)))>=abs(max(Average_LFP(time_snippet>=0&time_snippet<=100)))
-            Amplitude_LFP=abs(min(Average_LFP(time_snippet>=0&time_snippet<=100))-max(Average_LFP(time_snippet>=0&time_snippet<=100)));
+        if strcmp(device,'DISC')
+            if abs(min(Average_LFP(time_snippet>=0&time_snippet<=100)))>=abs(max(Average_LFP(time_snippet>=0&time_snippet<=100)))
+                Amplitude_LFP=abs(min(Average_LFP(time_snippet>=0&time_snippet<=100))-max(Average_LFP(time_snippet>=0&time_snippet<=100)));
+            else
+                Amplitude_LFP=nan;
+            end
         else
-            Amplitude_LFP=nan;
+            Amplitude_LFP=abs(min(Average_LFP(time_snippet>=0&time_snippet<=100))-max(Average_LFP(time_snippet>=0&time_snippet<=100)));
         end
+        
         RMS_noise_LFP=rms(Average_LFP(time_snippet<0));
         RMS_signal_LFP= rms(Average_LFP(time_snippet>=0&time_snippet<=100));
         SNR_LFP=10*log10(RMS_signal_LFP/RMS_noise_LFP);
@@ -287,7 +326,7 @@ for file_num=1:(length(filelist)) %9
     
     clear Amplitude Amplitude_LFP temp_LFP Snippet Average_LFP SNR_LFP RMS_LFP
     clear Amplitude_Gamma temp_Gamma Snippet_Gamma  Average_Gamma
-    clear col row i j type Fsdown threshold pulse_signal Gamma LFP direction_trials
+    clear col row i j type threshold pulse_signal Gamma LFP direction_trials
     if strcmp(device,'DISC')
         
         %Changes tuning curves to NaN if column is missing
@@ -313,8 +352,9 @@ for file_num=1:(length(filelist)) %9
         end
 
 %        FEATURE MATRIX DISC, no DC, no denoising
-        [feature_matrix_one_file, class_one_file]=Func_DISC_RV(NeuralData, channels_interest,0);
-        
+%         [feature_matrix_one_file, class_one_file]=Func_DISC_RV_v2(NeuralData, channels_interest,LFPbandflag, featureflag);
+        [feature_matrix_one_file, class_one_file]=Func_DISC_RV_v3(NeuralData, channels_interest,LFPbandflag, featureflag, Fsdown);
+
         feature_matrix_DISC=[feature_matrix_DISC; feature_matrix_one_file];
         class_DISC=[class_DISC class_one_file];
         
@@ -376,7 +416,7 @@ for file_num=1:(length(filelist)) %9
                 DC_offset=[DC_offset temp3];
 
             end
-            data_summary(row_num).DC_offset=DC_offset';
+%             data_summary(row_num).DC_offset=DC_offset';
         
         else
             data_summary(row_num).Amplitude_LFP=NaN;
@@ -385,7 +425,7 @@ for file_num=1:(length(filelist)) %9
             data_summary(row_num).Amplitude_LFP_Trials=NaN; 
             data_summary(row_num).LFP_Waveform=NaN;
             data_summary(row_num).Time_Trials=NaN;
-            data_summary(row_num).DC_offset=NaN;
+%             data_summary(row_num).DC_offset=NaN;
 
         end
 
@@ -477,10 +517,10 @@ for file_num=1:(length(filelist)) %9
             
             channels_interest_macro=channels_interest.DISCMacro;
             row_num=size(data_summary,2)+1;
-            for gamma_macro_flag=0:1
-            [feature_matrix_one_file, class_one_file]=Func_MacroDISC(NeuralData, channels_interest_macro,gamma_macro_flag);
+            for LFPband_macro_flag=0:1
+            [feature_matrix_one_file, class_one_file]=Func_MacroDISC(NeuralData, channels_interest_macro,LFPband_macro_flag);
             
-            if gamma_macro_flag== gammaflag
+            if LFPband_macro_flag==LFPbandflag || (LFPband_macro_flag== 0 && LFPbandflag>1)
                 feature_matrix_DISC_Macro_2mm=[feature_matrix_DISC_Macro_2mm; feature_matrix_one_file];
                 class_DISC_Macro_2mm=[class_DISC_Macro_2mm class_one_file];
             end
@@ -516,32 +556,32 @@ for file_num=1:(length(filelist)) %9
             data_summary(row_num).CAR_Flag=CAR_Flag;
 
             
-            if gamma_macro_flag==1
-                data_summary(row_num).Amplitude_Gamma=Amplitude_Macro;
-                data_summary(row_num).Amplitude_Gamma_ChNum=1;
-                data_summary(row_num).Amplitude_Gamma_Trials=abs(min(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),[],2)-max(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),[],2));
-                
-                data_summary(row_num).SNR_Gamma=SNR_Macro;
-                data_summary(row_num).SNR_Gamma_ChNum=1;
-                data_summary(row_num).SNR_Gamma_Trials=10.*log10(rms(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),2)./rms(feature_matrix_one_file(:,time_snippet<0),2));
-                   
-                data_summary(row_num).RMS_noise_Gamma=rms(Average_Macro(time_snippet<0));
-                data_summary(row_num).RMS_signal_Gamma=rms(Average_Macro(time_snippet>=0&time_snippet<=100));
-                data_summary(row_num).RMS_signal_Gamma_ChNum=1;
+            switch LFPband_macro_flag
+                case 1 
+                    data_summary(row_num).Amplitude_Gamma=Amplitude_Macro;
+                    data_summary(row_num).Amplitude_Gamma_ChNum=1;
+                    data_summary(row_num).Amplitude_Gamma_Trials=abs(min(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),[],2)-max(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),[],2));
 
-                %                 data_summary(row_num).RMS_noise_Gamma_Trials=rms(feature_matrix_one_file(:,time_snippet<0),2);
-%                 data_summary(row_num).RMS_signal_Gamma_Trials=rms(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),2);
-                
-                Subject_Data_Summary(row_num_subject_summary).Amplitude_Gamma=Amplitude_Macro;
-                Subject_Data_Summary(row_num_subject_summary).SNR_Gamma=SNR_Macro;
-                %             Subject_Data_Summary(row_num_subject_summary).Amplitude_Gamma_average=Amplitude_Macro;
-                %             Subject_Data_Summary(row_num_subject_summary).SNR_Gamma_average=SNR_Macro;
-                Subject_Data_Summary(row_num_subject_summary).RMS_noise_Gamma=rms(Average_Macro(time_snippet<0));
-                Subject_Data_Summary(row_num_subject_summary).RMS_signal_Gamma=rms(Average_Macro(time_snippet>=0&time_snippet<=100));
-                
-                
-            else
-                if gamma_macro_flag==0
+                    data_summary(row_num).SNR_Gamma=SNR_Macro;
+                    data_summary(row_num).SNR_Gamma_ChNum=1;
+                    data_summary(row_num).SNR_Gamma_Trials=10.*log10(rms(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),2)./rms(feature_matrix_one_file(:,time_snippet<0),2));
+
+                    data_summary(row_num).RMS_noise_Gamma=rms(Average_Macro(time_snippet<0));
+                    data_summary(row_num).RMS_signal_Gamma=rms(Average_Macro(time_snippet>=0&time_snippet<=100));
+                    data_summary(row_num).RMS_signal_Gamma_ChNum=1;
+
+                    %                 data_summary(row_num).RMS_noise_Gamma_Trials=rms(feature_matrix_one_file(:,time_snippet<0),2);
+    %                 data_summary(row_num).RMS_signal_Gamma_Trials=rms(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),2);
+
+                    Subject_Data_Summary(row_num_subject_summary).Amplitude_Gamma=Amplitude_Macro;
+                    Subject_Data_Summary(row_num_subject_summary).SNR_Gamma=SNR_Macro;
+                    %             Subject_Data_Summary(row_num_subject_summary).Amplitude_Gamma_average=Amplitude_Macro;
+                    %             Subject_Data_Summary(row_num_subject_summary).SNR_Gamma_average=SNR_Macro;
+                    Subject_Data_Summary(row_num_subject_summary).RMS_noise_Gamma=rms(Average_Macro(time_snippet<0));
+                    Subject_Data_Summary(row_num_subject_summary).RMS_signal_Gamma=rms(Average_Macro(time_snippet>=0&time_snippet<=100));
+
+
+                case {0,2,3,4}
                     data_summary(row_num).Amplitude_LFP=Amplitude_Macro;
                     data_summary(row_num).Amplitude_LFP_ChNum=1;
                     data_summary(row_num).Amplitude_LFP_Trials=abs(min(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),[],2)-max(feature_matrix_one_file(:,time_snippet>=0&time_snippet<=100),[],2));
@@ -566,14 +606,13 @@ for file_num=1:(length(filelist)) %9
                     Subject_Data_Summary(row_num_subject_summary).RMS_signal_LFP=rms(Average_Macro(time_snippet>=0&time_snippet<=100));
                     
                     
-                end
             end
             end
             row_num_subject_summary=row_num_subject_summary+1;
             
             % FEATURE MATRIX 400 MACRO
              row_num=size(data_summary,2)+1;
-            for gamma_macro_flag=0:1
+            for LFPband_macro_flag=0:1
             temp=[];
             Amplitude_Macro=[];
             SNR_Macro=[];
@@ -593,7 +632,7 @@ for file_num=1:(length(filelist)) %9
                     case 3
                         channels_interest_macro=channels_interest.DISCMacro(9:11,:);
                 end
-                [feature_matrix_one_file, class_one_file]=Func_MacroDISC(NeuralData, channels_interest_macro,gamma_macro_flag);
+                [feature_matrix_one_file, class_one_file]=Func_MacroDISC(NeuralData, channels_interest_macro,LFPband_macro_flag);
                 temp=[temp feature_matrix_one_file];
                 Average_Macro=nanmean(feature_matrix_one_file);
                 temp2=abs((min(Average_Macro(time_snippet>=0&time_snippet<=100))-max(Average_Macro(time_snippet>=0&time_snippet<=100))));
@@ -617,7 +656,7 @@ for file_num=1:(length(filelist)) %9
                 RMS_signal_Trials_Macro=[RMS_noise_Trials_Macro temp2];
 
             end
-            if gamma_macro_flag== gammaflag
+            if LFPband_macro_flag==LFPbandflag || (LFPband_macro_flag== 0 && LFPbandflag>1)
                 
                 feature_matrix_DISC_Macro_400um=[feature_matrix_DISC_Macro_400um; temp];
                 class_DISC_Macro_400um=[class_DISC_Macro_400um class_one_file];
@@ -648,7 +687,7 @@ for file_num=1:(length(filelist)) %9
             data_summary(row_num).CAR_Flag=CAR_Flag;
             Subject_Data_Summary(row_num_subject_summary).Device='Macro, 400um';
             
-            if gamma_macro_flag==1
+            if LFPband_macro_flag == 1
                 temp2=find(Amplitude_Macro == max(Amplitude_Macro));
                 data_summary(row_num).Amplitude_Gamma=Amplitude_Macro(temp2);
                 data_summary(row_num).Amplitude_Gamma_ChNum=temp2;
@@ -676,8 +715,7 @@ for file_num=1:(length(filelist)) %9
                 Subject_Data_Summary(row_num_subject_summary).RMS_signal_Gamma=max(RMS_signal_Macro);
                 
             else
-                if gamma_macro_flag==0
-                    temp2=find(Amplitude_Macro == max(Amplitude_Macro));
+                temp2=find(Amplitude_Macro == max(Amplitude_Macro));
                     data_summary(row_num).Amplitude_LFP=Amplitude_Macro(temp2);
                     data_summary(row_num).Amplitude_LFP_ChNum=temp2;
                     data_summary(row_num).Amplitude_LFP_Trials=Amplitude_Trials_Macro(:,temp2);
@@ -705,7 +743,7 @@ for file_num=1:(length(filelist)) %9
                     Subject_Data_Summary(row_num_subject_summary).SNR_LFP=max(SNR_Macro);
                     Subject_Data_Summary(row_num_subject_summary).RMS_noise_LFP=mean(RMS_noise_Macro);
                     Subject_Data_Summary(row_num_subject_summary).RMS_signal_LFP=max(RMS_signal_Macro);
-                end
+                
             end
             clear SNR_Macro Amplitude_Macro Average_Macro
             
@@ -722,7 +760,8 @@ for file_num=1:(length(filelist)) %9
         magnitude_trials=[];
         direction_trials=[];
 %         [feature_matrix_one_file, class_one_file]=Func_DISC_RV(NeuralData, channels_interest,0, magnitude_trials, direction_trials);
-        [feature_matrix_one_file, class_one_file]=Func_DISC_RV(NeuralData, channels_interest,0);
+%         [feature_matrix_one_file, class_one_file]=Func_DISC_RV_v2(NeuralData, channels_interest,LFPbandflag, featureflag);
+        [feature_matrix_one_file, class_one_file]=Func_DISC_RV_v3(NeuralData, channels_interest,LFPbandflag, featureflag, Fsdown);
 
         feature_matrix_MW=[feature_matrix_MW; feature_matrix_one_file];
         class_MW=[class_MW class_one_file];
@@ -793,14 +832,14 @@ for file_num=1:(length(filelist)) %9
         for i=1:numel(channels_interest.model)
             temp=[temp find([NeuralData.Channel_Number]==channels_interest.model(i))];
         end
-        temp2=find([NeuralData.Amplitude_Gamma] == max([NeuralData(temp).Amplitude_Gamma]));
+        temp2=find([NeuralData.Amplitude_Gamma] == max([NeuralData(temp).Amplitude_Gamma],[],'omitnan'));
         data_summary(row_num).Amplitude_Gamma=NeuralData(temp2).Amplitude_Gamma;
         data_summary(row_num).Amplitude_Gamma_ChNum=NeuralData(temp2).Channel_Number;
         data_summary(row_num).Amplitude_Gamma_Ch_Impedance=NeuralData(temp2).Channel_Impedance_Magnitude;
         data_summary(row_num).Amplitude_Gamma_Trials=NeuralData(temp2).Amplitude_Gamma_Trials;
         data_summary(row_num).Gamma_Waveform=nanmean(NeuralData(temp2).Trials_Gamma);
 
-        temp2=find([NeuralData.Amplitude] == max([NeuralData(temp).Amplitude]));
+        temp2=find([NeuralData.Amplitude] == max([NeuralData(temp).Amplitude],[],'omitnan'));
         data_summary(row_num).Amplitude_LFP=NeuralData(temp2).Amplitude;
         data_summary(row_num).Amplitude_LFP_ChNum=NeuralData(temp2).Channel_Number;
         data_summary(row_num).Amplitude_LFP_Ch_Impedance=NeuralData(temp2).Channel_Impedance_Magnitude;        
@@ -808,25 +847,25 @@ for file_num=1:(length(filelist)) %9
         data_summary(row_num).LFP_Waveform=nanmean(NeuralData(temp2).Trials);
         data_summary(row_num).Time_Trials=NeuralData(temp2).Time_Trial;
         
-        temp2=find([NeuralData.SNR_Gamma] == max([NeuralData(temp).SNR_Gamma]));
+        temp2=find([NeuralData.SNR_Gamma] == max([NeuralData(temp).SNR_Gamma],[],'omitnan'));
         data_summary(row_num).SNR_Gamma=NeuralData(temp2).SNR_Gamma;
         data_summary(row_num).SNR_Gamma_ChNum=NeuralData(temp2).Channel_Number;
         data_summary(row_num).SNR_Gamma_Ch_Impedance=NeuralData(temp2).Channel_Impedance_Magnitude;
         data_summary(row_num).SNR_Gamma_Trials=NeuralData(temp2).SNR_Gamma_Trials;   
                 
-        temp2=find([NeuralData.SNR] == max([NeuralData(temp).SNR]));
+        temp2=find([NeuralData.SNR] == max([NeuralData(temp).SNR],[],'omitnan'));
         data_summary(row_num).SNR_LFP=NeuralData(temp2).SNR;
         data_summary(row_num).SNR_LFP_ChNum=NeuralData(temp2).Channel_Number;
         data_summary(row_num).SNR_LFP_Ch_Impedance=NeuralData(temp2).Channel_Impedance_Magnitude;
         data_summary(row_num).SNR_LFP_Trials=NeuralData(temp2).SNR;  
         
         data_summary(row_num).RMS_noise_LFP=mean([NeuralData(temp).RMS_noise_LFP]);
-        temp2=find([NeuralData.RMS_signal_LFP] == max([NeuralData(temp).RMS_signal_LFP]));
+        temp2=find([NeuralData.RMS_signal_LFP] == max([NeuralData(temp).RMS_signal_LFP],[],'omitnan'));
         data_summary(row_num).RMS_signal_LFP=NeuralData(temp2).RMS_signal_LFP;        
         data_summary(row_num).RMS_signal_LFP_ChNum=NeuralData(temp2).Channel_Number;
         
         data_summary(row_num).RMS_noise_Gamma=mean([NeuralData(temp).RMS_noise_Gamma]);     
-        temp2=find([NeuralData.RMS_signal_Gamma] == max([NeuralData(temp).RMS_signal_Gamma]));
+        temp2=find([NeuralData.RMS_signal_Gamma] == max([NeuralData(temp).RMS_signal_Gamma],[],'omitnan'));
         data_summary(row_num).RMS_signal_Gamma=NeuralData(temp2).RMS_signal_Gamma;
         data_summary(row_num).RMS_signal_Gamma_ChNum=NeuralData(temp2).Channel_Number;
         

@@ -1,4 +1,4 @@
-function [tuning_matrix, tuning_matrix_smoothed, magnitude, direction, pval_ray, pval_omni]=Func_Tuning_Curves_v4(NeuralData, channels_interest, binsize, plotflag, plot_colors, gammaflag, data_flag,date)
+function [tuning_matrix, tuning_matrix_smoothed, magnitude, direction, pval_ray, pval_omni]=Func_Tuning_Curves_v3(NeuralData, channels_interest, binsize, plotflag, plot_colors, gammaflag, data_flag,date)
 % Tuning_Curves will generate the tuning curve from the indicated channels
 % channels_interest is an nx8 matrix that includes the channels that want
 % to be used for the tuning curve. 8 is the number of columns, and n is the
@@ -15,7 +15,6 @@ function [tuning_matrix, tuning_matrix_smoothed, magnitude, direction, pval_ray,
 % needed to create a tuning curve
 % -v2 added Rayleigh z test
 % -v3 automates DISC angles based on the date
-% -v4 comments out interpolation completely, as this will be done in python
 tuning_matrix=zeros(size(channels_interest,1),size(channels_interest,2));
 tuning_matrix_smoothed=zeros(size(channels_interest,1),(360/binsize)+1);
 magnitude=[];
@@ -48,7 +47,8 @@ for i=1:1 %size(channels_interest,1) % rows
          
          if size(channels_interest,2)==8
              if strcmp(date,'1-11-21') || strcmp(date, '1-13-21') || strcmp(date,'1-15-21')...
-                     || strcmp(date, '1-27-21') || strcmp(date, '1-28-21')
+                     || strcmp(date, '1-27-21') || strcmp(date, '1-28-21')...
+                     || strcmp(date, '11-12-20') || strcmp(date, '03-02-21')
                  DISC_Angles=[-5, 43, 91, 139, 187, 235, 283, 331]; % DISC angles for Jan 2021 recordings
                  DISC_Angles_tuning=[-5 43 91 139 187 235 283 331 355 403 451 499 547 595 643 691 715 763 811 859 907 955 1003 1051]; % DISC angles for 2021 recordings
              elseif strcmp(date,'8-27-21') || strcmp(date, '9-7-21') || strcmp(date, '9-9-21')
@@ -65,7 +65,8 @@ for i=1:1 %size(channels_interest,1) % rows
              
          elseif size(channels_interest,2)==4
              if strcmp(date,'1-11-21') || strcmp(date, '1-13-21') || strcmp(date,'1-15-21')...
-                     || strcmp(date, '1-27-21') || strcmp(date, '1-28-21')
+                     || strcmp(date, '1-27-21') || strcmp(date, '1-28-21') ...
+                     || strcmp(date, '11-12-20') || strcmp(date, '03-02-21')
                  %      Four columns DISC
                  DISC_Angles=[-5, 91, 187, 283]; % DISC angles for Jan 2021 recordings
                  DISC_Angles_tuning=[-5 91 187 283 355 451 547 643 715 811 907 1003]; % DISC angles for  Jan 2021 recordings
@@ -86,26 +87,30 @@ for i=1:1 %size(channels_interest,1) % rows
          elseif size(channels_interest,2)==4
              DISC_Angles=[0, 90, 180, 270]; % for tetrodes
              DISC_Angles_tuning=[0 90 180 270 360 450 540 630 720 810 900 990 ]; % for tetrodes
+         elseif size(channels_interest)==2
+             DISC_Angles=[0, 180]; % for tetrodes
+             DISC_Angles_tuning=[0 180 360 540 720 900 ]; % for tetrodes
+
          end
      end
         % Smooth data
     angles=0:binsize:1080;
 
-%     % x angles are separated 50 degrees because they are dependent on the DISC angle
-%     tuning_vector_smoothed=[tuning_vector tuning_vector tuning_vector ]; %  amplitude values
-% %     tuning_vector_smoothed=interp1(DISC_Angles_tuning, tuning_vector_smoothed,angles, 'pchip');
-%     tuning_vector_smoothed=interp1(DISC_Angles_tuning, tuning_vector_smoothed,angles, 'linear');
-%     
+    % x angles are separated 50 degrees because they are dependent on the DISC angle
+    tuning_vector_smoothed=[tuning_vector tuning_vector tuning_vector ]; %  amplitude values
+%     tuning_vector_smoothed=interp1(DISC_Angles_tuning, tuning_vector_smoothed,angles, 'pchip');
+    tuning_vector_smoothed=interp1(DISC_Angles_tuning, tuning_vector_smoothed,angles, 'linear');
+    
     %     figure
 %     plot(angles, tuning_vector_smoothed, 'LineWidth', 3)
 %     xlim([360 720])
 %     ylim([0 150])
 %     
-% 
-% angles_rad=[0:binsize:360].*(pi/180);
-% tuning_matrix(i, :)=tuning_vector;
-% tuning_matrix_smoothed(i,:)=tuning_vector_smoothed(angles>=360 & angles<=720);
-% angles=0:binsize:360;
+
+angles_rad=[0:binsize:360].*(pi/180);
+tuning_matrix(i, :)=tuning_vector;
+tuning_matrix_smoothed(i,:)=tuning_vector_smoothed(angles>=360 & angles<=720);
+angles=0:binsize:360;
 
 % pval_omni=NaN;
 % [pval_ray, ~]=circ_rtest(circ_ang2rad(DISC_Angles), tuning_vector); % if a channel has a NaN, this would become a NaN
@@ -114,42 +119,42 @@ for i=1:1 %size(channels_interest,1) % rows
 % data_flag used to indicate manipulations in the data. 0 is raw amplitude,
 % 1 is regularization (subtract mean), 2 is normalization (divide by max
 % amplitude)
-% switch data_flag
-%     case 0
-%         temp=tuning_matrix_smoothed(i,:);
-%     case 1
-%         temp=tuning_matrix_smoothed(i,:)-min(tuning_matrix_smoothed(i,:))+.0001;
-%     case 2
-%         temp=tuning_matrix_smoothed(i,:)/max(tuning_matrix_smoothed(i,:));
-% end
-% [pval_ray, ~]=circ_rtest(angles_rad, temp);
-% % [pval_omni, ~]=circ_otest(angles_rad, 1, temp);
-% pval_omni=nan;
-% 
-% x=temp.*cosd(angles); % If using tuning_matrix_smoothed, magnitude gets too high
-% y=temp.*sind(angles);
-% % x=tuning_vector.*cosd(DISC_Angles); % If using tuning_matrix_smoothed, magnitude gets too high
-% % y=tuning_vector.*sind(DISC_Angles);
-% 
-% x_mean=nanmean(x);
-% y_mean=nanmean(y);
-% x=nansum(x); 
-% y=nansum(y);
-% 
-% %%% Calculates vector magnitude and direction
-% if x>=0 & y>=0
-%     direction(i)=atand(y/x);
-% elseif x<0 & y>=0
-%     direction(i)=180-atand(y/x);
-% elseif x<0 & y<0
-%     direction(i)=180+atand(y/x);
-% elseif x>=0 & y<0
-%     direction(i)=360+atand(y/x);
-%     
-% end
-% magnitude(i)=sqrt((x^2)+(y^2));
-% 
-% end
+switch data_flag
+    case 0
+        temp=tuning_matrix_smoothed(i,:);
+    case 1
+        temp=tuning_matrix_smoothed(i,:)-min(tuning_matrix_smoothed(i,:))+.0001;
+    case 2
+        temp=tuning_matrix_smoothed(i,:)/max(tuning_matrix_smoothed(i,:));
+end
+[pval_ray, ~]=circ_rtest(angles_rad, temp);
+% [pval_omni, ~]=circ_otest(angles_rad, 1, temp);
+pval_omni=nan;
+
+x=temp.*cosd(angles); % If using tuning_matrix_smoothed, magnitude gets too high
+y=temp.*sind(angles);
+% x=tuning_vector.*cosd(DISC_Angles); % If using tuning_matrix_smoothed, magnitude gets too high
+% y=tuning_vector.*sind(DISC_Angles);
+
+x_mean=nanmean(x);
+y_mean=nanmean(y);
+x=nansum(x); 
+y=nansum(y);
+
+%%% Calculates vector magnitude and direction
+if x>=0 & y>=0
+    direction(i)=atand(y/x);
+elseif x<0 & y>=0
+    direction(i)=180-atand(y/x);
+elseif x<0 & y<0
+    direction(i)=180+atand(y/x);
+elseif x>=0 & y<0
+    direction(i)=360+atand(y/x);
+    
+end
+magnitude(i)=sqrt((x^2)+(y^2));
+
+end
 
 % Resultant vectors
 

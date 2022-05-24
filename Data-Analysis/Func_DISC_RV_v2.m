@@ -1,10 +1,13 @@
-function [feature_matrix_one_file, class_one_file]=Func_DISC_RV(NeuralData, channels_interest,feature_flag)
+function [feature_matrix_one_file, class_one_file]=Func_DISC_RV_v2(NeuralData, channels_interest,gammaflag,feature_flag)
 %% FEATURE EXTRACTIONS - Creates feature matrix based on snippets, and the class as a vector. This only works for DISC
 % I've implemented a feature_flag to indicate if we're only doing snippets,
 % snippets+DC, or snippets+RV. It does not do only RVs
 % Based from Data_FeatureExtract_v4. Works for gamma band only
 % Feature_flag will indicate whether we will have wavefoms only (0),
-% wavefoms with DC(1), wavefoms with RV (2) or CSD only (3)
+% wavefoms with DC(1), wavefoms with RV (2) or CSD gamma (3)
+% -v2 now has option (3) of feature flag: CSD for the rows and
+% columns given. It also added gammaflag. CSD can be computed for gamma or
+% LFP based on the gammaflag value given
 channel_numbers=reshape(channels_interest.model,1,numel(channels_interest.model));
 feature_matrix_one_file=[];
 
@@ -45,28 +48,15 @@ for i=1:length(channel_numbers)
                     
                     
             end
-            
-%             if ismember(channel_number,channels_interest.RV)
-%                 
-%                 %%%% GAMMA RESULTANT VECTORS
-%                 switch feature_flag
-%                     case 1
-%                         %%% GAMMA TUNING CURVES
-%                         if size(NeuralData(position_struct).Directional_Trials_Gamma(trial_num,:),2)==size_features
-%                             feature_matrix_one_file(trial_num, 1:size_features)=NeuralData(position_struct).Directional_Trials_Gamma(trial_num,:)
-%                         else
-%                             feature_matrix_one_file(trial_num,1:7)=NeuralData(position_struct).Directional_Trials_Gamma(trial_num,:);
-%                             feature_matrix_one_file(trial_num,8)=NaN;
-%                         end
-%                     case 2
-%                         feature_matrix_one_file(trial_num,1) = magnitude_trials(trial_num);
-%                         feature_matrix_one_file(trial_num,2) = direction_trials(trial_num);
-%                 end
-%             end
-            %%% Gamma SNIPPETS
-            temp=NeuralData(position_struct).Trials_Gamma(trial_num,:);
+            if gammaflag==1
+                %%% Gamma SNIPPETS
+                temp=NeuralData(position_struct).Trials_Gamma(trial_num,:);
+            else
+                temp=NeuralData(position_struct).Trials(trial_num,:);
+
+            end
             time_snippet=NeuralData(position_struct).Time_Trial;
-            
+
 %             %%% Uncomment if using data above 15 ms
 % %             temp2=find(time_snippet>=15);
 % %             temp=temp(temp2);
@@ -83,7 +73,7 @@ for i=1:length(channel_numbers)
             if trial_num>1
                 end_mat=size_features+end_vec*(i-1);
             end
-            
+
             feature_matrix_one_file(trial_num,end_mat+1:end_mat+end_vec)=temp;
         end
     else
@@ -96,5 +86,30 @@ for i=1:length(channel_numbers)
     end
     
 end
+
+% Converts raw waveforms to CSD
+if feature_flag==3 
+    % Convert feature_matrix_one (11x (201x4)) variables to matrices that keep the row x col values order    
+    length_trials=end_vec;
+    [num_rows, num_columns]=size(channels_interest.model);
+    [num_trials,~]=size(feature_matrix_one_file);
+    % splits feature_matrix_one_file in number of columns
+    CSD_feature_matrix_one_file=[];
+    for i=1:num_trials    
+        temp2=[]; % new matrix that will replace the old feature_matrix one
+        feature_matrix_copy=feature_matrix_one_file(i,:);
+        feature_matrix_copy=reshape(feature_matrix_copy,length_trials,num_rows,num_columns);
+        for j=1:num_columns
+            LFP_matrix=feature_matrix_copy(:,:,j); % time is in the rows, and electrode row number in the column.
+            CSD=diff(LFP_matrix,2,2); % If we're going to plot this, we need to transpose it. 
+            CSD=reshape(CSD,1, numel(CSD));
+            temp2=[temp2 CSD];
+        end
+        CSD_feature_matrix_one_file=[CSD_feature_matrix_one_file; temp2];
+
+    end
+    feature_matrix_one_file=CSD_feature_matrix_one_file;
+end
+
 end
 
